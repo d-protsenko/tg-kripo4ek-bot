@@ -38,9 +38,10 @@ def midas(message):
 @bot.message_handler(commands=['creep'])
 def creep(message):
     db_controller.upsert_creep_hp(message.chat.id, 100)
+    # TODO: check if such event already exists
     degen_event = scheduler_utils.Event(
         'DEGEN',
-        10,
+        30*60,
         'degen_creep',
         {
             'chat_id': message.chat.id,
