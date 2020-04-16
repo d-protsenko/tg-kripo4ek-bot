@@ -3,9 +3,11 @@ import db_controller
 import telebot
 import logging
 from pprint import pformat
-import threading
+import scheduler_utils
+import scheduling
 
 bot = telebot.TeleBot(config.token)
+scheduler = scheduling.Scheduler()
 
 money = {}
 
@@ -36,7 +38,16 @@ def midas(message):
 @bot.message_handler(commands=['creep'])
 def creep(message):
     db_controller.upsert_creep_hp(message.chat.id, 100)
-    create_scheduled_event(10, db_controller.degen_creep, (message.chat.id, 1))
+    degen_event = scheduler_utils.Event(
+        'DEGEN',
+        10,
+        'degen_creep',
+        {
+            'chat_id': message.chat.id,
+            'amount': 1
+        }
+    )
+    scheduler.add_event(message.chat.id, degen_event)
     # TODO: if creep has 0 hp, create another one
     money[message.chat.id] = 0
     bot.send_message(
@@ -51,7 +62,6 @@ def creep(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    print(message.chat.id)
     hp = db_controller.get_creep_hp(message.chat.id)
     if hp == 0:
         bot.send_message(message.chat.id, 'Для начала надо начать играть :^) /creep')
@@ -72,18 +82,13 @@ def feed(message):
     )
 
 
-@bot.message_handler(content_types=["text"], regexp='push me to the edge')
+@bot.message_handler(content_types=['text'], regexp='push me to the edge')
 def echo_message_easter_push(message):
     logging.debug(pformat(message))
     bot.send_message(message.chat.id, 'all the creeps are dead')
 
 
-@bot.message_handler(content_types=["text"])
+@bot.message_handler(content_types=['text'])
 def echo_message(message):
     logging.debug(pformat(message))
     bot.send_message(message.chat.id, message.text)
-
-
-def create_scheduled_event(interval, action, actionargs=()):
-    threading.Timer(interval, create_scheduled_event, (interval, action, actionargs)).start()
-    action(*actionargs)
