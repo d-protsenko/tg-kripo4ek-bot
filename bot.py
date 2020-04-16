@@ -7,23 +7,11 @@ import threading
 
 bot = telebot.TeleBot(config.token)
 
-creep_map = {}
 money = {}
 
 
-def add_to_map(chat_id, hp):
-    creep_map[chat_id] = hp
-
-
-def update_in_map(chat_id, hp):
-    creep_map[chat_id] = hp
-
-
-def get_creep_hp(chat_id):
-    try:
-        return creep_map[chat_id]
-    except Exception as ex:
-        return 0
+def start():
+    bot.infinity_polling()
 
 
 @bot.message_handler(commands=['start', 'help'])
@@ -37,7 +25,7 @@ def handle_start_help(message):
 
 @bot.message_handler(commands=['midas'])
 def midas(message):
-    creep_map[message.chat.id] = 0
+    db_controller.upsert_creep_hp(message.chat.id, 0)
     money[message.chat.id] = money[message.chat.id] + 190
     bot.send_message(
         message.chat.id,
@@ -47,9 +35,9 @@ def midas(message):
 
 @bot.message_handler(commands=['creep'])
 def creep(message):
-    db_controller.add_new_creep(message.chat.id, 100)
+    db_controller.upsert_creep_hp(message.chat.id, 100)
+    create_scheduled_event(10, db_controller.degen_creep, (message.chat.id, 1))
     # TODO: if creep has 0 hp, create another one
-    add_to_map(message.chat.id, 100)
     money[message.chat.id] = 0
     bot.send_message(
         message.chat.id,
@@ -63,20 +51,21 @@ def creep(message):
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    hp = get_creep_hp(message.chat.id)
+    print(message.chat.id)
+    hp = db_controller.get_creep_hp(message.chat.id)
     if hp == 0:
         bot.send_message(message.chat.id, 'Для начала надо начать играть :^) /creep')
     else:
         bot.send_message(
             message.chat.id,
-            'У твоего крипочка сейчас ' + str(get_creep_hp(message.chat.id)) + ' здоровья'
+            'У твоего крипочка сейчас ' + str(hp) + ' здоровья'
         )
 
 
 @bot.message_handler(commands=['feed'])
 def feed(message):
-    new_hp = get_creep_hp(message.chat.id) + 5
-    update_in_map(message.chat.id, new_hp)
+    new_hp = db_controller.get_creep_hp(message.chat.id) + 5
+    db_controller.upsert_creep_hp(message.chat.id, new_hp)
     bot.send_message(
         message.chat.id,
         'Твой крипочек успешно накормлен, теперь у него ' + str(new_hp) + ' здоровья'
@@ -95,19 +84,6 @@ def echo_message(message):
     bot.send_message(message.chat.id, message.text)
 
 
-def hp_degen():
-    for x in creep_map:
-        if creep_map[x] > 0:
-            creep_map[x] = creep_map[x] - 1
-
-
 def create_scheduled_event(interval, action, actionargs=()):
     threading.Timer(interval, create_scheduled_event, (interval, action, actionargs)).start()
     action(*actionargs)
-
-
-if __name__ == '__main__':
-    db_controller.create_collection('creep')
-    logging.getLogger().setLevel(logging.DEBUG)
-    create_scheduled_event(10, hp_degen)
-    bot.infinity_polling()

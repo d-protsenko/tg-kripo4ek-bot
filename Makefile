@@ -1,8 +1,5 @@
-MONGO_DB_CONTAINER_NAME=tg_bot_mongo
-DB_NAME=tg_bot_mongo_db
-DB_USER=tg_bot_mongo_user
-DB_USER_PWD=tg_bot_mongo_password
-AUTH_DB=admin
+DB_CONTAINER_NAME=tg_bot_redis
+DB_PWD=tg_bot_redis_pwd
 
 .PHONY: start-db
 
@@ -12,4 +9,4 @@ start-db:
 .PHONY: connect-to-db
 
 connect-to-db:
-	docker exec -it ${MONGO_DB_CONTAINER_NAME} bash -c "mongo --username ${DB_USER} --password ${DB_USER_PWD} --authenticationDatabase ${AUTH_DB} mongodb://localhost:27017/${DB_NAME}"
+	docker exec -it ${DB_CONTAINER_NAME} redis-cli -a ${DB_PWD}

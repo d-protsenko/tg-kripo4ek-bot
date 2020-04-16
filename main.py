@@ -1,14 +1,15 @@
 from argparse import ArgumentParser
 import logging
+import bot
 
 
 def parse_arguments():
     parser = ArgumentParser(description='telegram bot')
-    parser.add_argument('-n', '--n',
+    parser.add_argument('-t', '--token',
                         type=str,
-                        dest='number',
-                        default='1',
-                        help='number'
+                        dest='token',
+                        default='token',
+                        help='tg bot token'
                         )
     return parser.parse_args()
 
@@ -20,5 +21,6 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.DEBUG)
     args = parse_arguments()
-
+    bot.start()

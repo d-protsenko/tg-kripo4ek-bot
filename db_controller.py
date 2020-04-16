@@ -1,14 +1,22 @@
-import pymongo
+import redis
 import config
+import logging
 
-client = pymongo.MongoClient('localhost', 27017)
-db = client[config.db_name]
-db.authenticate(config.db_user, config.db_user_pwd)
-
-
-def create_collection(name):
-    db.create_collection(name)
+cache = redis.Redis(host='localhost', port=6379, password=config.db_pwd)
 
 
-def add_new_creep(chat_id, hp):
-    db.get_collection('creep').insert_one({'chat_id': chat_id, 'hp': hp})
+def get_creep_hp(chat_id):
+    return int(cache.get(chat_id))
+
+
+def kill_creep(chat_id):
+    cache.delete(chat_id)
+
+
+def degen_creep(chat_id, amount):
+    logging.debug("degen " + str(chat_id) + " on " + str(amount) + "hp")
+    cache.decr(chat_id, int(amount))
+
+
+def upsert_creep_hp(chat_id, hp):
+    cache.set(chat_id, int(hp))
