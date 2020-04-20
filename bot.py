@@ -1,47 +1,42 @@
 import config
-import db_controller
 import telebot
 import logging
 from pprint import pformat
 import scheduler_utils
 import scheduling
+import creep
+import profile
 
 bot = telebot.TeleBot(config.token)
 scheduler = scheduling.Scheduler()
-
-money = {}
 
 
 def start():
     bot.infinity_polling()
 
 
-@bot.message_handler(commands=['start', 'help'])
+def authenticate(message):
+    if profile.get_money(message.chat.id) == -1 or creep.get_creep_hp(message.chat.id) == -1:
+        bot.send_message(
+            message.chat.id,
+            'Для начала нужно начать играть, используй /start'
+        )
+        return False
+    return True
+
+
+@bot.message_handler(commands=['start'])
 def handle_start_help(message):
+    creep.set_creep_hp(message.chat.id, 100)
+    profile.set_money(message.chat.id, 0)
     bot.send_message(
         message.chat.id,
         'Привет, я крип, маленький такой крипочек. '
         '/creep'
     )
-
-
-@bot.message_handler(commands=['midas'])
-def midas(message):
-    db_controller.upsert_creep_hp(message.chat.id, 0)
-    money[message.chat.id] = money[message.chat.id] + 190
-    bot.send_message(
-        message.chat.id,
-        'Вы замидасили своего крипа, теперь у него 0 хп. Зато у вас на счету теперь ' + str(money[message.chat.id])
-    )
-
-
-@bot.message_handler(commands=['creep'])
-def creep(message):
-    db_controller.upsert_creep_hp(message.chat.id, 100)
-    # TODO: check if such event already exists
     degen_event = scheduler_utils.Event(
         'DEGEN',
-        30*60,
+        30,
         'degen_creep',
         {
             'chat_id': message.chat.id,
@@ -49,34 +44,60 @@ def creep(message):
         }
     )
     scheduler.add_event(message.chat.id, degen_event)
-    # TODO: if creep has 0 hp, create another one
-    money[message.chat.id] = 0
+
+
+@bot.message_handler(commands=['midas'])
+def midas(message):
+    if not authenticate(message):
+        return
+    creep.set_creep_hp(message.chat.id, 0)
+    profile.add_money(message.chat.id, 190)
     bot.send_message(
         message.chat.id,
-        'Сейчас у твоего крипочка 100 здоровья '
-        '(используй /status, чтобы узнать сколько здоровья у твоего крипочка),'
-        ' и, пока что, они не убавляются,'
-        ' но ты можешь его покормить (используй /feed)'
-        ' и добавить ему немножко здоровья :^)'
+        'Вы замидасили своего крипа, теперь у него 0 хп. Зато у вас на счету теперь ' +
+        str(profile.get_money(message.chat.id))
     )
+
+
+@bot.message_handler(commands=['creep'])
+def create_creep(message):
+    if not authenticate(message):
+        return
+    # TODO: if creep has 0 hp, create another one
+    if creep.get_creep_hp(message.chat.id) == 0:
+        creep.set_creep_hp(message.chat.id, 100)
+        bot.send_message(
+            message.chat.id,
+            'Ты только что создал нового крипочка и у него сейчас 100 здоровья.'
+        )
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Сейчас у твоего крипочка ' + str(creep.get_creep_hp(message.chat.id)) + ' здоровья ' +
+            '(используй /status, чтобы узнать сколько здоровья у твоего крипочка),' +
+            ' и, пока что, они не убавляются,' +
+            ' но ты можешь его покормить (используй /feed)' +
+            ' и добавить ему немножко здоровья :^)'
+        )
 
 
 @bot.message_handler(commands=['status'])
 def status(message):
-    hp = db_controller.get_creep_hp(message.chat.id)
-    if hp == 0:
-        bot.send_message(message.chat.id, 'Для начала надо начать играть :^) /creep')
-    else:
-        bot.send_message(
-            message.chat.id,
-            'У твоего крипочка сейчас ' + str(hp) + ' здоровья'
-        )
+    if not authenticate(message):
+        return
+    bot.send_message(
+        message.chat.id,
+        'У твоего крипочка сейчас ' + str(creep.get_creep_hp(message.chat.id)) + ' здоровья.\n' +
+        'А у тебя ' + str(profile.get_money(message.chat.id)) + ' золота.'
+    )
 
 
 @bot.message_handler(commands=['feed'])
 def feed(message):
-    new_hp = db_controller.get_creep_hp(message.chat.id) + 5
-    db_controller.upsert_creep_hp(message.chat.id, new_hp)
+    if not authenticate(message):
+        return
+    new_hp = creep.get_creep_hp(message.chat.id) + 5
+    creep.set_creep_hp(message.chat.id, new_hp)
     bot.send_message(
         message.chat.id,
         'Твой крипочек успешно накормлен, теперь у него ' + str(new_hp) + ' здоровья'

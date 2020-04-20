@@ -24,9 +24,9 @@ class Scheduler:
             create_scheduled_event(_.interval, _.action_name, _.actionargs)
 
     def add_event(self, id: str, event: scheduler_utils.Event):
-        db_controller.save_event_to_db(id, event)
-        threading.Timer(
-            event.interval,
-            create_scheduled_event,
-            (event.interval, event.action_name, event.actionargs)
-        ).start()
+        if db_controller.save_event_to_db(id, event):
+            threading.Timer(
+                event.interval,
+                create_scheduled_event,
+                (event.interval, event.action_name, event.actionargs)
+            ).start()
